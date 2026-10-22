@@ -263,6 +263,41 @@ fn ambiguous_profile() -> AppError {
     )
 }
 
+/// Prefer `SPLICECLAW_TOKEN` when set (bird-style durable env), else Firefox cookies.
+/// The token value is never logged or written by this function.
+pub(crate) fn resolve_session(
+    root: &Path,
+    requested: Option<&str>,
+    now_seconds: u64,
+) -> Result<Session, AppError> {
+    if requested.is_none()
+        && let Ok(token) = std::env::var("SPLICECLAW_TOKEN")
+        && !token.is_empty()
+    {
+        return session_from_token("env", token, now_seconds);
+    }
+    read_session(root, requested, now_seconds)
+}
+
+pub(crate) fn env_token_present() -> bool {
+    std::env::var_os("SPLICECLAW_TOKEN").is_some_and(|value| !value.is_empty())
+}
+
+fn session_from_token(profile: &str, token: String, now_seconds: u64) -> Result<Session, AppError> {
+    let token = Secret::new(token)?;
+    if jwt_expiry(token.as_str()).is_some_and(|exp| exp <= now_seconds) {
+        return Err(AppError::new(
+            "session_expired",
+            "The Splice session from SPLICECLAW_TOKEN has expired.",
+            "Refresh the token with the local sync helper, or open splice.com in Firefox and sign in again.",
+        ));
+    }
+    Ok(Session {
+        profile: profile.to_owned(),
+        token,
+    })
+}
+
 pub(crate) fn read_session(
     root: &Path,
     requested: Option<&str>,
@@ -318,18 +353,10 @@ pub(crate) fn read_session(
         return Err(AppError::new(
             code,
             "No unique unexpired Splice session was found in the selected Firefox profile.",
-            "Open splice.com in that Firefox profile and sign in. Container tabs are not selected.",
+            "Open splice.com in that Firefox profile and sign in, or set SPLICECLAW_TOKEN via the local sync helper. Container tabs are not selected.",
         ));
     }
-    let token = Secret::new(tokens.pop().unwrap())?;
-    if jwt_expiry(token.as_str()).is_some_and(|exp| exp <= now_seconds) {
-        return Err(AppError::new(
-            "session_expired",
-            "The Firefox Splice session has expired.",
-            "Open splice.com in that Firefox profile so the session refreshes, then run once.",
-        ));
-    }
-    Ok(Session { profile, token })
+    session_from_token(&profile, tokens.pop().unwrap(), now_seconds)
 }
 
 fn jwt_expiry(token: &str) -> Option<u64> {
@@ -420,5 +447,44 @@ mod tests {
             read_session(root.path(), None, 1_000).unwrap_err().code,
             "session_expired"
         );
+    }
+
+    #[test]
+    fn resolve_session_prefers_env_token() {
+        let root = fixture();
+        let token = sample_token(4_000_000_000);
+        // SAFETY: test-only env mutation in a serial unit test.
+        unsafe {
+            std::env::set_var("SPLICECLAW_TOKEN", &token);
+        }
+        let session = resolve_session(root.path(), None, 1_000).unwrap();
+        assert_eq!(session.profile, "env");
+        assert!(session.authorization().starts_with("Bearer "));
+        unsafe {
+            std::env::remove_var("SPLICECLAW_TOKEN");
+        }
+    }
+
+    #[test]
+    fn resolve_session_keeps_firefox_when_profile_flag_set() {
+        let root = fixture();
+        let firefox_token = sample_token(4_000_000_000);
+        add(
+            root.path(),
+            "_splice_token_prod",
+            ".splice.com",
+            "",
+            &firefox_token,
+            4_000_000_000,
+        );
+        let env_token = sample_token(3_999_999_999);
+        unsafe {
+            std::env::set_var("SPLICECLAW_TOKEN", &env_token);
+        }
+        let session = resolve_session(root.path(), Some("main"), 1_000).unwrap();
+        assert_eq!(session.profile, "main");
+        unsafe {
+            std::env::remove_var("SPLICECLAW_TOKEN");
+        }
     }
 }

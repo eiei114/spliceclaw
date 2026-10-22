@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Accept optional `SPLICECLAW_TOKEN` as a durable session fallback when Firefox cookies are unavailable (bird-style env transport). Token values are still never printed. `--profile` keeps the Firefox-only path.
+
 ## 0.1.0
 
 - Search your own Splice Sounds samples from the Firefox session on Windows and macOS.

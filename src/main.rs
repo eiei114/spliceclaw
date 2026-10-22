@@ -12,7 +12,9 @@ use serde_json::{Value, json};
 
 use crate::cli::{Cli, Command};
 use crate::error::AppError;
-use crate::firefox::{Locations, firefox_executable_present, firefox_present, read_session};
+use crate::firefox::{
+    Locations, env_token_present, firefox_executable_present, firefox_present, resolve_session,
+};
 use crate::splice::{
     MediaChoice, SourcePlan, catalog_uuid, download_file, fetch_account, fetch_asset,
     output_file_name, plan_source, purchase, purchase_required, search,
@@ -95,20 +97,22 @@ fn run(cli: &Cli) -> Result<Value, AppError> {
     match &cli.command {
         Command::Doctor => Ok(success(
             command,
-            "Firefox configuration presence only. Cookies were not opened.",
+            "Local transport presence only. Cookie values were not opened.",
             json!({
                 "os": std::env::consts::OS,
                 "arch": std::env::consts::ARCH,
                 "firefoxConfig": firefox_present(&locations.firefox),
-                "firefoxExecutable": firefox_executable_present()
+                "firefoxExecutable": firefox_executable_present(),
+                "envToken": env_token_present()
             }),
         )),
         Command::Auth { .. } => {
-            let session = read_session(&locations.firefox, cli.profile.as_deref(), now_seconds()?)?;
+            let session =
+                resolve_session(&locations.firefox, cli.profile.as_deref(), now_seconds()?)?;
             if !cli.live {
                 return Ok(success(
                     command,
-                    "Firefox session is present. Splice was not contacted.",
+                    "Splice session is present. Splice was not contacted.",
                     json!({
                         "firefoxProfile": session.profile,
                         "live": false,
@@ -140,7 +144,8 @@ fn run(cli: &Cli) -> Result<Value, AppError> {
                     "Run search again with --limit 8.",
                 ));
             }
-            let session = read_session(&locations.firefox, cli.profile.as_deref(), now_seconds()?)?;
+            let session =
+                resolve_session(&locations.firefox, cli.profile.as_deref(), now_seconds()?)?;
             let (records, hits) = search(
                 &session,
                 search_query(query)?,
@@ -165,7 +170,8 @@ fn run(cli: &Cli) -> Result<Value, AppError> {
         } => {
             require_live(cli.live)?;
             catalog_uuid(uuid)?;
-            let session = read_session(&locations.firefox, cli.profile.as_deref(), now_seconds()?)?;
+            let session =
+                resolve_session(&locations.firefox, cli.profile.as_deref(), now_seconds()?)?;
             let asset = resolve_asset(&session, uuid, *preview, *confirm)?;
             Ok(success(
                 command,
@@ -181,7 +187,8 @@ fn run(cli: &Cli) -> Result<Value, AppError> {
         } => {
             require_live(cli.live)?;
             catalog_uuid(uuid)?;
-            let session = read_session(&locations.firefox, cli.profile.as_deref(), now_seconds()?)?;
+            let session =
+                resolve_session(&locations.firefox, cli.profile.as_deref(), now_seconds()?)?;
             let asset = resolve_asset(&session, uuid, *preview, *confirm)?;
             let url = asset
                 .get("url")
