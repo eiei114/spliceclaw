@@ -283,11 +283,7 @@ pub(crate) fn env_token_present() -> bool {
     std::env::var_os("SPLICECLAW_TOKEN").is_some_and(|value| !value.is_empty())
 }
 
-fn session_from_token(
-    profile: &str,
-    token: String,
-    now_seconds: u64,
-) -> Result<Session, AppError> {
+fn session_from_token(profile: &str, token: String, now_seconds: u64) -> Result<Session, AppError> {
     let token = Secret::new(token)?;
     if jwt_expiry(token.as_str()).is_some_and(|exp| exp <= now_seconds) {
         return Err(AppError::new(
