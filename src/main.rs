@@ -1,3 +1,4 @@
+mod browser;
 mod cli;
 mod error;
 mod firefox;
@@ -10,7 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use clap::Parser;
 use serde_json::{Value, json};
 
-use crate::cli::{Cli, Command};
+use crate::cli::{AuthCommand, Cli, Command};
 use crate::error::AppError;
 use crate::firefox::{Locations, firefox_executable_present, firefox_present, read_session};
 use crate::splice::{
@@ -103,8 +104,24 @@ fn run(cli: &Cli) -> Result<Value, AppError> {
                 "firefoxExecutable": firefox_executable_present()
             }),
         )),
-        Command::Auth { .. } => {
-            let session = read_session(&locations.firefox, cli.profile.as_deref(), now_seconds()?)?;
+        Command::Auth { command: auth } => {
+            let refreshed_profile = match auth {
+                AuthCommand::Status => None,
+                AuthCommand::Refresh { wait_seconds } => {
+                    require_live(cli.live)?;
+                    Some(browser::refresh(
+                        &locations.firefox,
+                        cli.profile.as_deref(),
+                        *wait_seconds,
+                    )?)
+                }
+            };
+            // Read only after the browser has quit and flushed its cookie database.
+            let session = read_session(
+                &locations.firefox,
+                refreshed_profile.as_deref().or(cli.profile.as_deref()),
+                now_seconds()?,
+            )?;
             if !cli.live {
                 return Ok(success(
                     command,
@@ -119,7 +136,11 @@ fn run(cli: &Cli) -> Result<Value, AppError> {
             let account = fetch_account(&session)?;
             Ok(success(
                 command,
-                "Read the Splice account with one request. No sample was purchased.",
+                if refreshed_profile.is_some() {
+                    "Opened Firefox, quit it normally, and verified the Splice account. No sample was purchased."
+                } else {
+                    "Read the Splice account with one request. No sample was purchased."
+                },
                 json!({
                     "firefoxProfile": session.profile,
                     "live": true,

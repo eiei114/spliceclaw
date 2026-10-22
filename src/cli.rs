@@ -26,7 +26,7 @@ pub(crate) struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
-    /// Check the signed-in Firefox account.
+    /// Check or refresh the signed-in Firefox account.
     Auth {
         #[command(subcommand)]
         command: AuthCommand,
@@ -75,6 +75,12 @@ pub(crate) enum Command {
 pub(crate) enum AuthCommand {
     /// Report session presence, or with --live the username and credits.
     Status,
+    /// Open Splice in Firefox, wait, quit Firefox, then verify the account (macOS).
+    Refresh {
+        /// Time to allow session refresh or manual login before Firefox quits.
+        #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u64).range(1..=300))]
+        wait_seconds: u64,
+    },
 }
 
 impl Command {
@@ -83,10 +89,46 @@ impl Command {
             Self::Auth {
                 command: AuthCommand::Status,
             } => "auth status",
+            Self::Auth {
+                command: AuthCommand::Refresh { .. },
+            } => "auth refresh",
             Self::Doctor => "doctor",
             Self::Search { .. } => "search",
             Self::Link { .. } => "link",
             Self::Download { .. } => "download",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refresh_flags_and_bounds() {
+        let cli = Cli::try_parse_from([
+            "spliceclaw",
+            "auth",
+            "refresh",
+            "--live",
+            "--profile",
+            "default-release",
+        ])
+        .unwrap();
+        assert!(cli.live);
+        assert_eq!(cli.profile.as_deref(), Some("default-release"));
+        assert_eq!(cli.command.label(), "auth refresh");
+        assert!(matches!(
+            cli.command,
+            Command::Auth {
+                command: AuthCommand::Refresh { wait_seconds: 20 }
+            }
+        ));
+        for value in ["0", "301", "not-a-number"] {
+            assert!(
+                Cli::try_parse_from(["spliceclaw", "auth", "refresh", "--wait-seconds", value])
+                    .is_err()
+            );
         }
     }
 }

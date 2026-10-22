@@ -191,7 +191,10 @@ fn ini(file: &Path) -> Result<Vec<Section>, AppError> {
     Ok(sections)
 }
 
-fn profile_dir(root: &Path, requested: Option<&str>) -> Result<(PathBuf, String), AppError> {
+pub(crate) fn profile_dir(
+    root: &Path,
+    requested: Option<&str>,
+) -> Result<(PathBuf, String), AppError> {
     let config = ini(&root.join("profiles.ini"))?;
     let profiles: Vec<_> = config
         .iter()
