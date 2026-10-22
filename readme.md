@@ -5,7 +5,9 @@
 
 自分の Firefox に入っている Splice セッションで、Sounds のサンプルを探す CLI。Splice 非公式。Splice とは無関係。
 
-cookie の `_splice_token_prod` だけを読み取り専用で使う。値は表示も保存もしない。Keychain と `key4.db` は解かない。
+cookie の `_splice_token_prod` だけを読み取り専用で使う。値は表示しない。Keychain と `key4.db` は解かない。
+
+Firefox が無い／読めない環境向けに、環境変数 `SPLICECLAW_TOKEN`（同じ JWT）も使える。CLI 引数での cookie 渡しはしない。`--profile` を付けると Firefox を強制し、env は無視する。
 
 ## コマンド
 

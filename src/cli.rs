@@ -9,14 +9,14 @@ use clap::{Parser, Subcommand};
     about = "Search your own Splice Sounds samples from the Firefox session"
 )]
 #[command(
-    after_help = "Offline unless --live is set.\nsearch does not spend credits. link prints a URL and does not save a file.\ndownload saves one audio file. An unlicensed source file needs --confirm and spends 1 credit.\n--preview uses the preview MP3 and never purchases.\nCookies are never printed, saved, or accepted as arguments."
+    after_help = "Offline unless --live is set.\nsearch does not spend credits. link prints a URL and does not save a file.\ndownload saves one audio file. An unlicensed source file needs --confirm and spends 1 credit.\n--preview uses the preview MP3 and never purchases.\nCookies are never printed or accepted as CLI arguments.\nOptional durable auth: set SPLICECLAW_TOKEN (JWT from _splice_token_prod) when Firefox cookies are unavailable. --profile forces Firefox and ignores the env token."
 )]
 pub(crate) struct Cli {
     /// Contact Splice. Without this flag, only local session presence is checked.
     #[arg(long, global = true)]
     pub live: bool,
 
-    /// Firefox profile name from profiles.ini. Not a cookie value.
+    /// Firefox profile name from profiles.ini. Not a cookie value. Forces Firefox over SPLICECLAW_TOKEN.
     #[arg(long, global = true)]
     pub profile: Option<String>,
 
